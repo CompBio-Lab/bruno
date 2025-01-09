@@ -48,8 +48,8 @@ class EarlyStopping():
                 # print('INFO: Early stopping')
                 self.early_stop = True
 
-class TrainModel(): 
-    
+class TrainModel():
+
     def __init__(self, graph, model, args):
         self.args = args
         self.graph = graph.to(self.args.device)
@@ -60,22 +60,22 @@ class TrainModel():
             self.criterion = nn.MSELoss()
         else:
             self.criterion = nn.CrossEntropyLoss()
-        
+
         self.optim = torch.optim.Adam(self.model.parameters(), lr=self.args.lr, weight_decay=self.args.w_decay)
-        
+
         self.train_loss = []
         self.val_loss = []
         self.train_complete = False
         self.cim = None
         self.weights = []
-        
+
     def learn(self) -> None:
-        for epoch in range(self.args.epochs): 
+        for epoch in range(self.args.epochs):
             if self.train_complete: return
-            
+
             tl = self.train_epoch()
             self.train_loss.append(tl)
-            
+
             vl = self.val()
             self.val_loss.append(vl)
             self.early_stopping(vl)
@@ -87,12 +87,12 @@ class TrainModel():
         self.train_complete = True
         print('Epoch:' + str(epoch+1), 'Training loss: ' + str(round(tl)))
         print('Epoch:' + str(epoch+1), 'Validation loss: ' + str(round(vl)))
-        
+
     def train_epoch(self) -> float:
         self.model.train()
         y_true = self.graph.y[self.graph.train_mask]
         self.optim.zero_grad()
-        y_pred, outputs = self.model(self.graph.x, self.graph.edge_index) 
+        y_pred, outputs = self.model(self.graph.x, self.graph.edge_index)
         loss = self.criterion(y_pred[self.graph.train_mask], y_true)
         loss.backward()
         self.optim.step()
@@ -121,18 +121,18 @@ class TrainModel():
                     self.model.state_dict()[name].data.copy_(weights)
         self.weights.append(w)
         return loss.data.item()
-    
+
     def val(self) -> float:
-        # returns the validation loss 
+        # returns the validation loss
         self.model.eval()
         labels = self.graph.y[self.graph.val_mask]
-        output, outputs = self.model(self.graph.x, self.graph.edge_index) 
+        output, outputs = self.model(self.graph.x, self.graph.edge_index)
         loss = self.criterion(output[self.graph.val_mask], labels)
         return loss.data.item()
 
-    def test(self) -> float: 
-        # returns the test accuracy 
-        if not self.train_complete: 
+    def test(self) -> float:
+        # returns the test accuracy
+        if not self.train_complete:
             self.learn()
         self.model.eval()
         y_true = self.graph.y[self.graph.test_mask]
@@ -142,19 +142,20 @@ class TrainModel():
         y_pred = y_pred[self.graph.test_mask].cpu().detach().numpy()
         y_true = y_true.cpu().detach().numpy()
         return output, y_true, y_pred
-    
+
     def plot_loss(self) -> None:
-        if not self.train_complete: 
+        if not self.train_complete:
             self.learn()
         if self.args.num_classes == None:
             self.loss("Mean Square Error")
         else:
             self.loss("Cross Entrophy Loss")
-          
+
     def loss(self, loss_name) -> None:
         plt.plot(self.train_loss, color='r')
         plt.plot(self.val_loss, color='b')
-        plt.yscale('log',basey=10)
+        plt.yscale('log',base=10)
+        print("Hi!")
         plt.xscale('log')
         plt.xlabel("epoch")
         plt.ylabel(loss_name)
@@ -165,7 +166,7 @@ class TrainModel():
         w = w.rename(columns = {str(index): '0', str(index+1):'1'})
         w.insert(2, "values", 1)
         return w.pivot(index=['0'], columns=['1']).fillna(0)
-    
+
     def convert_map(self, model, args):
         map = model.map_f
         method = args.method
@@ -213,14 +214,14 @@ class TrainModel():
         for i in list(range(weights.shape[0])):
           weights[i,:] = self.func(weights[i,:], keepX)
         return weights
-    
+
     def l2(self, w):
         for i in list(range(w.shape[0])):
           w[i,:] = w[i,:]/torch.linalg.norm(w[i,:])
         return w
-    
+
     def metrics(self) -> float:
-        if not self.train_complete: 
+        if not self.train_complete:
             self.learn()
         metrics = self.compute_metrics()
         return metrics
@@ -247,17 +248,17 @@ class TrainModel():
                                 'auc': [auc],
                   'bacc': [metrics.balanced_accuracy_score(y_true, y_pred)]})
         return met
-    
+
     def plot_pca(self) -> None:
-        if not self.train_complete: 
+        if not self.train_complete:
             self.learn()
         self.pca()
-    
+
     def plot_tsne(self) -> None:
-        if not self.train_complete: 
+        if not self.train_complete:
             self.learn()
         self.tsne()
-    
+
     def pca(self) -> None:
         pred, outputs = self.model(self.graph.x, self.graph.edge_index)
         ## compute PCA of embeddings
@@ -278,11 +279,11 @@ class TrainModel():
             ax = axes[i]
             pcs = embeddings[dataset_name]
             scprep.plot.scatter2d(pcs, c=col,
-                                  ticks=None, ax=ax, 
+                                  ticks=None, ax=ax,
                                   xlabel='PC1', ylabel='PC2',
                                   title=dataset_name,
                                 legend=False)
-            
+
         fig.tight_layout()
 
     def tsne(self) -> None:
@@ -306,24 +307,24 @@ class TrainModel():
             ax = axes[i]
             pcs = embeddings[dataset_name]
             scprep.plot.scatter2d(pcs, c=col,
-                                  ticks=None, ax=ax, 
+                                  ticks=None, ax=ax,
                                   xlabel='TSNE1', ylabel='TSNE2',
                                   title=dataset_name,
-                                legend=False)    
+                                legend=False)
         fig.tight_layout()
-    
-    
+
+
     def get_weights(self) -> float:
-        if not self.train_complete: 
+        if not self.train_complete:
               self.learn()
         w={}
         for name, param in self.model.named_parameters():
                 #if re.search("lin.weight", name):
                 w[name] = param
         return w
-      
+
     def plot_weights_of_last_layer(self, figsize=(10, 5)) -> None:
-        if not self.train_complete: 
+        if not self.train_complete:
             self.learn()
         w = self.get_weights()
         cim=w[list(w.keys())[-1]].cpu().detach().numpy()
@@ -360,15 +361,15 @@ def genSankey(df,cat_cols=[],value_cols='',title='Sankey Diagram'):
         labelListTemp =  list(set(df[catCol].values))
         colorNumList.append(len(labelListTemp))
         labelList = labelList + labelListTemp
-        
+
     # remove duplicates from labelList
     labelList = list(dict.fromkeys(labelList))
-    
+
     # define colors based on number of levels
     colorList = []
     for idx, colorNum in enumerate(colorNumList):
         colorList = colorList + [colorPalette[idx]]*colorNum
-        
+
     # transform df into a source-target pair
     for i in range(len(cat_cols)-1):
         if i==0:
@@ -379,11 +380,11 @@ def genSankey(df,cat_cols=[],value_cols='',title='Sankey Diagram'):
             tempDf.columns = ['source','target','count']
             sourceTargetDf = pd.concat([sourceTargetDf,tempDf])
         sourceTargetDf = sourceTargetDf.groupby(['source','target']).agg({'count':'sum'}).reset_index()
-        
+
     # add index for source-target pair
     sourceTargetDf['sourceID'] = sourceTargetDf['source'].apply(lambda x: labelList.index(x))
     sourceTargetDf['targetID'] = sourceTargetDf['target'].apply(lambda x: labelList.index(x))
-    
+
     # creating the sankey diagram
     data = dict(
         type='sankey',
@@ -403,14 +404,15 @@ def genSankey(df,cat_cols=[],value_cols='',title='Sankey Diagram'):
           value = sourceTargetDf['count']
         )
       )
-    
+
     layout =  dict(
         title = title,
         font = dict(
           size = 10
         )
     )
-       
+
     fig = dict(data=[data], layout=layout)
     return fig
+
 

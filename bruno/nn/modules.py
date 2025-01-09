@@ -27,12 +27,12 @@ class Encoder(nn.Module):
         self.transition = nn.Sequential(
             nn.ReLU(),
             nn.Dropout(p=self.args.dropout)
-        ) 
+        )
 
-        self.modules = []
+        self.module_list = []
         for i in range(len(self.units)-1):
             if self.args.method == "GCNConv":
-                self.modules.append(nn.Sequential(
+                self.module_list.append(nn.Sequential(
                                 GCNConv(
                                     self.units[i],
                                     self.units[i+1],
@@ -41,7 +41,7 @@ class Encoder(nn.Module):
                             , nn.BatchNorm1d(self.units[i+1])
                         ))
             elif self.args.method == "GATConv":
-                self.modules.append(nn.Sequential(
+                self.module_list.append(nn.Sequential(
                                 GATConv(
                                     self.units[i],
                                     self.units[i+1],
@@ -51,7 +51,7 @@ class Encoder(nn.Module):
                             , nn.BatchNorm1d(self.units[i+1])
                         ))
             elif self.args.method == "ANN":
-                self.modules.append(nn.Sequential(
+                self.module_list.append(nn.Sequential(
                                 Linear(
                                     self.units[i],
                                     self.units[i+1],
@@ -62,9 +62,9 @@ class Encoder(nn.Module):
             else:
                 raise ValueError('args.type shoud be one of "GCNConv", "GATConv", or "ANN"')
         if self.args.num_classes is not None:
-            self.modules.append(nn.Sequential(nn.Linear(self.units[-1], self.args.num_classes, bias = self.bias)))
-        self.layers = nn.Sequential(*self.modules)
-    
+            self.module_list.append(nn.Sequential(nn.Linear(self.units[-1], self.args.num_classes, bias = self.bias)))
+        self.layers = nn.Sequential(*self.module_list)
+
     def forward(self, data, edge_index = None):
         x = data
         if self.args.method == "ANN":
@@ -93,7 +93,17 @@ class Encoder(nn.Module):
                         # x = self.transition(x)
                 ## save embeddings
                 outputs.append(x.cpu().detach().numpy())
-        return x, outputs
+
+        try:
+            if self.args.simple:
+                output = x
+            else:
+                output = (x, outputs)
+        except(AttributeError):
+                output = (x, outputs)
+
+
+        return output
 
 class Decoder(nn.Module):
     def __init__(
@@ -114,12 +124,12 @@ class Decoder(nn.Module):
             units = list(self.map_f.nunique())
             units[0] = self.args.num_node_features
             self.units = units
-        self.bias = bias 
+        self.bias = bias
 
-        self.modules = []
+        self.module_list = []
         for i in reversed(range(len(self.units)-1)):
             if self.args.method == "GCNConv":
-                self.modules.append(nn.Sequential(
+                self.module_list.append(nn.Sequential(
                                 GCNConv(
                                     self.units[i+1],
                                     self.units[i],
@@ -128,7 +138,7 @@ class Decoder(nn.Module):
                             , nn.BatchNorm1d(self.units[i])
                         ))
             elif self.args.method == "GATConv":
-                self.modules.append(nn.Sequential(
+                self.module_list.append(nn.Sequential(
                                 GATConv(
                                     self.units[i+1],
                                     self.units[i],
@@ -138,7 +148,7 @@ class Decoder(nn.Module):
                             , nn.BatchNorm1d(self.units[i])
                         ))
             elif self.args.method == "ANN":
-                self.modules.append(nn.Sequential(
+                self.module_list.append(nn.Sequential(
                                 Linear(
                                     self.units[i+1],
                                     self.units[i],
@@ -149,9 +159,9 @@ class Decoder(nn.Module):
             else:
                 raise ValueError('args.type shoud be one of "GCNConv", "GATConv", or "ANN"')
         # if self.args.num_classes is not None:
-        #     self.modules.append(nn.Sequential(nn.Linear(self.units[-1], self.args.num_classes, bias = self.bias)))
-        self.layers = nn.Sequential(*self.modules)
-    
+        #     self.module_list.append(nn.Sequential(nn.Linear(self.units[-1], self.args.num_classes, bias = self.bias)))
+        self.layers = nn.Sequential(*self.module_list)
+
     def forward(self, data, edge_index = None):
         if self.args.method == "ANN":
             x = data
@@ -201,3 +211,7 @@ class AE(nn.Module):
             x, encoded_embeddings = self.encoder(x, edge_index)
             x, decoded_embeddings = self.decoder(x, edge_index)
         return x, encoded_embeddings
+
+
+
+
